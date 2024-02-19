@@ -3,23 +3,33 @@ const axios = require('axios')
 const createError = require('http-errors')
 const JSON5 = require('json5')
 
-const errToString = err => {
-  const debug = {}
-  _.each([
-    'args',
+const errToString = (() => {
+  const ERROR_KEYS = [
+    'address',
     'code',
+    'data',
+    'dest',
+    'errno',
+    'info',
     'message',
     'name',
-    'raw',
+    'path',
+    'port',
+    'reason',
+    'response.data',
+    'response.headers',
+    'response.status',
     'stack',
     'status',
     'statusCode',
     'statusMessage',
-  ], key => {
-    if (_.hasIn(err, key)) _.set(debug, key, _.get(err, key))
+    'syscall',
+  ]
+  return err => ({
+    ..._.pick(err, ERROR_KEYS),
+    ...(_.isNil(err.originalError) ? {} : { originalError: errToString(err.originalError) }),
   })
-  return JSON.stringify(debug)
-}
+})()
 
 class Telegram {
   static async get (token, path) {
@@ -82,15 +92,16 @@ exports.main = async (req, res) => {
       response = JSON.stringify(req.body)
     }
 
-    if (_.hasIn(message, 'chat.id')) {
+    const chatId = message?.migrate_to_chat_id ?? message?.chat?.id
+    if (!_.isNil(chatId)) {
       if (_.isPlainObject(response)) {
         await Telegram.sendMessage(token, {
-          chat_id: message.chat.id,
+          chat_id: chatId,
           ...response
         })
       } else {
         await Telegram.sendMessage(token, {
-          chat_id: message.chat.id,
+          chat_id: chatId,
           text: response
         })
       }
